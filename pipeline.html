@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STARLING Tutorial</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            background-color: #f9f9f9;
+            color: #333;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #222;
+        }
+        pre {
+            background: #272822;
+            color: #f8f8f2;
+            padding: 15px;
+            overflow-x: auto;
+            border-radius: 5px;
+        }
+        code {
+            font-family: Consolas, monospace;
+        }
+        a {
+            color: #1a73e8;
+        }
+    </style>
+</head>
+<body>
+
+<h1>STARLING Tutorial</h1>
+
+<p>
+    In this tutorial, we will use <strong>Google Colab</strong> to run STARLING — a probabilistic machine learning model for clustering spatial proteomics data.
+    Google Colab is chosen so that you can run the example without worrying about local environment setup.
+</p>
+
+<p>
+    Code for this tutorial can be accessed here: <a href="INSERT_LINK_HERE">[Code Link]</a><br>
+    Credit to <strong>Campbell Lab</strong> for developing the STARLING library and providing the sample code:
+    <a href="INSERT_CAMPBELL_LAB_LINK_HERE">[Campbell Lab Link]</a>
+</p>
+
+<hr>
+
+<h2>Step 1: Imports</h2>
+
+<p>
+    First, we will install the required Python packages. These include core analysis libraries like
+    <code>scanpy</code>, <code>anndata</code>, and <code>numpy</code>, as well as visualization tools like
+    <code>matplotlib</code> and <code>seaborn</code>. We also install STARLING itself and supporting tools like
+    <code>phenograph</code> and <code>torch</code>.
+</p>
+
+<pre><code class="language-python">
+%pip install biostarling
+%pip install lightning_lite
+%pip install scanpy
+%pip install anndata
+%pip install numpy
+%pip install pandas
+%pip install scikit-learn
+%pip install matplotlib
+%pip install seaborn
+%pip install umap-learn
+%pip install starling
+%pip install utils
+%pip install phenograph
+%pip install torch
+</code></pre>
+
+<p>Now we can import the installed libraries:</p>
+
+<pre><code class="language-python">
+import anndata as ad
+import pandas as pd
+import scanpy as sc
+import anndata as ann
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import umap.umap_ as umap
+
+import phenograph
+import torch
+from starling import starling, utility
+from lightning_lite import seed_everything
+from sklearn.metrics import silhouette_score, adjusted_rand_score
+
+import pytorch_lightning as pl
+</code></pre>
+
+<hr>
+
+<h2>Step 2: Setting the Seed</h2>
+
+<p>
+    Setting a seed ensures reproducibility. Random number generators in Python can produce different results each run unless a seed is fixed.  
+    By setting the seed at the start, we ensure the same random operations yield identical results across runs.
+</p>
+
+<pre><code class="language-python">
+seed_everything(10, workers=True)
+</code></pre>
+
+<hr>
+
+<h2>Step 3: Loading the Data</h2>
+
+<p>
+    STARLING uses spatial single-cell data stored in the <code>.h5ad</code> format, which is the standard file type for <code>anndata</code> objects.  
+    These files store both the cell-by-gene (or marker) expression matrix and associated metadata, making them convenient for downstream analysis.
+</p>
+
+<p>
+    In this example, we will download a sample dataset from the STARLING GitHub repository.  
+    If you have your own <code>.h5ad</code> file, upload it to Google Colab or mount your Google Drive and update the <code>DATA_PATH</code> variable accordingly.
+</p>
+
+<pre><code class="language-python">
+# --- 0) Setup: installs & data ---
+!pip -q install git+https://github.com/camlab-bioml/starling.git scanpy anndata scikit-learn matplotlib pytorch-lightning umap-learn
+
+import warnings, sys, os, inspect
+warnings.filterwarnings("ignore")
+
+import matplotlib.pyplot as plt
+
+# STARLING imports
+from starling import utility               # <-- provides init_clustering
+from starling.starling import ST           # <-- import ST from submodule
+from pytorch_lightning import seed_everything
+
+# Download sample dataset
+!wget -q https://github.com/camlab-bioml/starling/raw/main/docs/source/tutorial/sample_input.h5ad
+
+# Path to dataset
+DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
+</code></pre>
+
+<hr>
+
+<h2>Step 4: (Next Steps)</h2>
+<p>
+    After loading the dataset, we will proceed to run STARLING clustering and visualize results in UMAP space.
+    These steps will be covered in the next section of the tutorial.
+</p>
+
+</body>
+</html>
