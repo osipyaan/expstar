@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>STARLING Explained</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        header {
+            background-color: #0f172a;
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
+        }
+        nav {
+            background-color: #1e293b;
+            padding: 0.5rem;
+            text-align: center;
+        }
+        nav a {
+            color: #e2e8f0;
+            text-decoration: none;
+            margin: 0 1rem;
+        }
+        nav a:hover {
+            color: #facc15;
+        }
+        main {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        section {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+        }
+        h2 {
+            color: #0f172a;
+        }
+        footer {
+            text-align: center;
+            background-color: #0f172a;
+            color: #94a3b8;
+            padding: 1rem;
+            font-size: 0.9rem;
+        }
+        .highlight {
+            background-color: #fef9c3;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>STARLING: Making Spatial Biology Clear</h1>
+    <p>Understanding complex cell data — without the headaches.</p>
+</header>
+
+<nav>
+    <a href="#what-is">What is STARLING?</a>
+    <a href="#why">Why Use It?</a>
+    <a href="#how">How It Works</a>
+    <a href="#learn-more">Learn More</a>
+</nav>
+
+<main>
+    <section id="what-is">
+        <h2>What is STARLING?</h2>
+        <p>
+            <span class="highlight">STARLING</span> is a computer program that helps scientists make sense of 
+            <strong>spatial single-cell data</strong> — information about where individual cells are located and what molecules they contain.
+        </p>
+        <p>
+            Imagine looking at a detailed city map where every house is a cell, and you also know what's inside each house. 
+            STARLING helps group similar "houses" together into neighborhoods — but it also accounts for mistakes in the map, 
+            like blurry photos or mislabelled streets.
+        </p>
+    </section>
+
+    <section id="why">
+        <h2>Why Use STARLING?</h2>
+        <ul>
+            <li><strong>Cleaner results</strong> – It detects and corrects for errors caused by cell segmentation mistakes.</li>
+            <li><strong>Better grouping</strong> – Finds clusters of cells that actually make sense biologically.</li>
+            <li><strong>Works with real-world data</strong> – Can handle noisy or imperfect experimental data.</li>
+        </ul>
+    </section>
+
+    <section id="how">
+        <h2>How Does It Work?</h2>
+        <ol>
+            <li><strong>Input:</strong> Data about each cell’s location and molecular markers.</li>
+            <li><strong>Probabilistic modeling:</strong> Uses statistics to guess which measurements are real and which might be errors.</li>
+            <li><strong>Clustering:</strong> Groups cells into meaningful types or "neighborhoods."</li>
+            <li><strong>Output:</strong> A cleaned-up map of cells that better reflects reality.</li>
+        </ol>
+    </section>
+
+    <section id="learn-more">
+        <h2>Learn More</h2>
+        <p>
+            Want to dive deeper? Check out:
+        </p>
+        <ul>
+            <li><a href="https://www.biorxiv.org" target="_blank">STARLING preprint on bioRxiv</a></li>
+            <li><a href="https://github.com" target="_blank">STARLING GitHub repository</a></li>
+        </ul>
+    </section>
+</main>
+
+<footer>
+    &copy; 2025 STARLING Education Page – Designed for students learning spatial biology.
+</footer>
+
+</body>
+</html>
