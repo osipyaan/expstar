@@ -10,6 +10,26 @@
             line-height: 1.6;
             background-color: #f9f9f9;
             color: #333;
+            padding: 0;
+            margin: 0;
+        }
+        nav {
+            background-color: #1a73e8;
+            padding: 10px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-right: 20px;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
+        .content {
             padding: 20px;
         }
         h1, h2 {
@@ -32,6 +52,16 @@
 </head>
 <body>
 
+<!-- Navigation Bar -->
+<nav>
+    <a href="#">Home</a>
+    <a href="https://osipyaan.github.io/expstar/pipeline" target="_blank">Example Pipeline</a>
+    <a href="INSERT_CODE_LINK_HERE" target="_blank">Code</a>
+    <a href="INSERT_CAMPBELL_LAB_LINK_HERE" target="_blank">Campbell Lab</a>
+</nav>
+
+<div class="content">
+
 <h1>STARLING Tutorial</h1>
 
 <p>
@@ -40,9 +70,17 @@
 </p>
 
 <p>
-    Code for this tutorial can be accessed here: <a href=https://colab.research.google.com/drive/14Gk-lnKaCmIEjq99w7kB7DJDBJYTkO3R?usp=sharing>[Code Link]</a><br>
+    Code for this tutorial can be accessed here: <a href="INSERT_CODE_LINK_HERE">[Code Link]</a><br>
     Credit to <strong>Campbell Lab</strong> for developing the STARLING library and providing the sample code:
-    <a href=https://colab.research.google.com/github/camlab-bioml/starling/blob/main/docs/source/tutorial/getting-started.ipynb>[Campbell Lab Link]</a>
+    <a href="INSERT_CAMPBELL_LAB_LINK_HERE">[Campbell Lab Link]</a>
+</p>
+
+<hr>
+
+<h2><a href="https://osipyaan.github.io/expstar/pipeline" target="_blank">Example Pipeline</a></h2>
+<p>
+    Click the heading above to see a full example pipeline for running STARLING, from installation to visualization.
+    This external page provides a step-by-step breakdown of the data preprocessing, clustering, and plotting process.
 </p>
 
 <hr>
@@ -150,5 +188,6 @@ DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
     These steps will be covered in the next section of the tutorial.
 </p>
 
+</div>
 </body>
 </html>
