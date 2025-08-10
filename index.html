@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLING - explained for students, new to computational biology </title>
-    <div class="flex justify-center">
-     
-    </div>
+    <title>STARLING - explained for students, new to computational biology</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -16,24 +13,29 @@
             background-color: #f8fafc;
             color: #1e293b;
         }
+        /* Sticky top nav bar */
+        nav {
+            background-color: #1a73e8;
+            padding: 10px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            text-align: left;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-right: 20px;
+            font-weight: bold;
+        }
+        nav a:hover {
+            text-decoration: underline;
+        }
         header {
             background-color: #0f172a;
             color: white;
             padding: 1rem 2rem;
             text-align: center;
-        }
-        nav {
-            background-color: #1e293b;
-            padding: 0.5rem;
-            text-align: center;
-        }
-        nav a {
-            color: #e2e8f0;
-            text-decoration: none;
-            margin: 0 1rem;
-        }
-        nav a:hover {
-            color: #facc15;
         }
         main {
             max-width: 900px;
@@ -66,18 +68,19 @@
 </head>
 <body>
 
+<!-- Sticky Navigation Bar -->
+<nav>
+    <a href="#">Home</a>
+    <a href="https://osipyaan.github.io/expstar/pipeline" target="_blank">Example Pipeline</a>
+    <a href="INSERT_CODE_LINK_HERE" target="_blank">Code</a>
+    <a href="INSERT_CAMPBELL_LAB_LINK_HERE" target="_blank">Campbell Lab</a>
+</nav>
+
 <header>
     <h1>STARLING: Making Spatial Biology Clear</h1>
     <img src="logo.png" alt="Logo" width="100" height="100" />
     <p>Understanding complex cell data — without the headaches.</p>
 </header>
-
-<nav>
-    <a href="#what-is">What is STARLING?</a>
-    <a href="#why">Why Use It?</a>
-    <a href="#how">Sample Pipeline</a>
-    <a href="#learn-more">Read the Literature</a>
-</nav>
 
 <main>
     <section id="what-is">
