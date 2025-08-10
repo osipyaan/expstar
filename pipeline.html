@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>STARLING Tutorial</title>
+    <title>STARLING Example Pipeline</title>
     <style>
         body {
             font-family: Arial, sans-serif;
             line-height: 1.6;
-            background-color: #f9f9f9;
-            color: #333;
-            padding: 0;
             margin: 0;
+            padding: 0;
+            background-color: #f8fafc;
+            color: #1e293b;
         }
+        /* Sticky top nav bar */
         nav {
             background-color: #1a73e8;
             padding: 10px 20px;
             position: sticky;
             top: 0;
             z-index: 1000;
+            text-align: left;
         }
         nav a {
             color: white;
@@ -29,36 +31,53 @@
         nav a:hover {
             text-decoration: underline;
         }
-        .content {
-            padding: 20px;
+        header {
+            background-color: #0f172a;
+            color: white;
+            padding: 1rem 2rem;
+            text-align: center;
         }
-        h1, h2 {
-            color: #222;
+        main {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1rem;
         }
-        pre {
-            background: #272822;
-            color: #f8f8f2;
-            padding: 15px;
-            overflow-x: auto;
-            border-radius: 5px;
+        section {
+            background: white;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.1);
         }
-        code {
-            font-family: Consolas, monospace;
+        h2 {
+            color: #0f172a;
         }
-        a {
-            color: #1a73e8;
+        footer {
+            text-align: center;
+            background-color: #0f172a;
+            color: #94a3b8;
+            padding: 1rem;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
 
-<!-- Navigation Bar -->
+<!-- Sticky Navigation Bar -->
 <nav>
-    <a href="#">Home</a>
+    <a href="https://osipyaan.github.io/expstar/">Home</a>
     <a href="https://osipyaan.github.io/expstar/pipeline" target="_blank">Example Pipeline</a>
     <a href="INSERT_CODE_LINK_HERE" target="_blank">Code</a>
     <a href="INSERT_CAMPBELL_LAB_LINK_HERE" target="_blank">Campbell Lab</a>
 </nav>
+
+<!-- Page Header -->
+<header>
+    <h1>STARLING: Making Spatial Biology Clear</h1>
+    <img src="logo.png" alt="Logo" width="100" height="100" />
+    <p>Understanding complex cell data — without the headaches.</p>
+</header>
+<body>
 
 <div class="content">
 
@@ -189,5 +208,8 @@ DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
 </p>
 
 </div>
+<footer>
+    &copy; 2025 STARLING Education Page – Designed for students learning spatial biology.
+</footer>
 </body>
 </html>
