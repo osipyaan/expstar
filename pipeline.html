@@ -105,10 +105,10 @@
     Click the heading above to see a full example pipeline for running STARLING, from installation to visualization.
     This external page provides a step-by-step breakdown of the data preprocessing, clustering, and plotting process.
 </p>
-<section id="tut2">
-    
-<hr>
+</section>
 
+<section id="tut3">
+<hr>
 <h2>Step 1: Imports</h2>
 
 <p>
@@ -155,7 +155,9 @@ from sklearn.metrics import silhouette_score, adjusted_rand_score
 
 import pytorch_lightning as pl
 </code></pre>
+</section>
 
+<section id="tut4">
 <hr>
 
 <h2>Step 2: Setting the Seed</h2>
@@ -168,7 +170,8 @@ import pytorch_lightning as pl
 <pre><code class="language-python">
 seed_everything(10, workers=True)
 </code></pre>
-
+</section>
+    
 <hr>
 
 <h2>Step 3: Loading the Data</h2>
