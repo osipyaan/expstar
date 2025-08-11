@@ -466,6 +466,160 @@ if label_key != "starling_labels":
     adata.obs["starling_labels"] = adata.obs[label_key].astype(str).values
 print(f"Using STARLING labels from obs['{label_key}'] -> obs['starling_labels']")
 </code></pre>
+<h2>Step 4: Metrics & Visualization</h2>
+
+<p>
+    This section defines helper functions to compute clustering evaluation metrics, applies them to each method, saves the results, and generates UMAP and spatial plots.
+</p>
+
+<h3>Metric functions</h3>
+<ul>
+    <li>
+        <b><code>silhouette_on_umap(adata, labels_key)</code></b> — Computes the silhouette score using the 2D UMAP embedding (<code>adata.obsm["X_umap"]</code>) and cluster labels.  
+        <ul>
+            <li>Formula: <code>s(i) = (b(i) - a(i)) / max(a(i), b(i))</code>, where <code>a(i)</code> = mean intra-cluster distance, <code>b(i)</code> = mean nearest-cluster distance.</li>
+            <li>Range: [-1, 1], higher = better.</li>
+            <li>NaN if fewer than two unique labels or no UMAP embedding.</li>
+        </ul>
+    </li>
+    <li>
+        <b><code>compute_ari(adata, labels_key, truth_key)</code></b> — Computes Adjusted Rand Index (ARI) between predicted labels and ground truth.  
+        <ul>
+            <li>Range: [-1, 1]; 0 ≈ random, 1 = perfect match.</li>
+            <li>NaN if <code>truth_key</code> missing.</li>
+        </ul>
+    </li>
+    <li>
+        <b><code>marker_exclusivity(...)</code></b> — Measures if a marker is concentrated in one cluster by comparing mean expression inside vs. outside the cluster.  
+        <ul>
+            <li>Score ≈ 1 means a cleanly “owned” marker.</li>
+            <li>NaN if marker missing.</li>
+        </ul>
+    </li>
+    <li>
+        <b><code>implausible_coexp_rate(...)</code></b> — Measures fraction of cells with high co-expression of two biologically implausible markers (above <code>q</code>-quantile).  
+        <ul>
+            <li>Lower = better.</li>
+            <li>NaN if either marker missing.</li>
+        </ul>
+    </li>
+</ul>
+
+<h3>Aggregate evaluation</h3>
+<p>
+    <code>evaluate_method(...)</code> returns a dictionary of:
+</p>
+<ul>
+    <li>Silhouette@UMAP</li>
+    <li>ARI (if ground truth)</li>
+    <li>One exclusivity score per marker in <code>EXCLUSIVITY_MARKERS</code></li>
+    <li>One implausible co-expression rate per pair in <code>IMPLAUSIBLE_PAIRS</code></li>
+</ul>
+<p>
+    These are run for each clustering method present in <code>adata.obs</code>, compiled into a DataFrame, saved as <code>benchmark_metrics.csv</code>, and rounded to 4 decimals.
+</p>
+
+<h3>Visualization</h3>
+<ul>
+    <li><b>UMAP plots:</b> Colors cells by cluster labels and saves as <code>umap_{method}.png</code>.</li>
+    <li><b>Spatial plots:</b> If spatial coordinates (<code>SPATIAL_X</code>, <code>SPATIAL_Y</code>) are present, colors cells by cluster labels in spatial context. If <code>sc.pl.spatial</code> is unavailable, falls back to a simple scatter plot.</li>
+</ul>
+
+<pre><code class="language-python">
+def silhouette_on_umap(adata, labels_key):
+    if "X_umap" not in adata.obsm or adata.obsm["X_umap"] is None:
+        return np.nan
+    emb = np.asarray(adata.obsm["X_umap"])
+    labs = adata.obs[labels_key].values
+    if len(np.unique(labs)) < 2:
+        return np.nan
+    return float(silhouette_score(emb, labs))
+
+def compute_ari(adata, labels_key, truth_key):
+    if truth_key is None or truth_key not in adata.obs.columns:
+        return np.nan
+    return float(adjusted_rand_score(adata.obs[truth_key].values,
+                                     adata.obs[labels_key].values))
+
+def marker_exclusivity(adata, labels_key, marker_name):
+    if marker_name not in adata.var_names:
+        return np.nan
+    v = _to_dense(adata[:, marker_name].X).reshape(-1)
+    labs = adata.obs[labels_key].values
+    best = -np.inf
+    for lab in pd.unique(labs):
+        m_in  = v[labs == lab].mean() if (labs == lab).sum() else 0.0
+        m_out = v[labs != lab].mean() if (labs != lab).sum() else 0.0
+        denom = m_in + m_out
+        score = m_in/denom if denom > 0 else np.nan
+        if score > best:
+            best = score
+    return float(best)
+
+def implausible_coexp_rate(adata, m1, m2, q=0.9):
+    if (m1 not in adata.var_names) or (m2 not in adata.var_names):
+        return np.nan
+    v1 = _to_dense(adata[:, m1].X).reshape(-1)
+    v2 = _to_dense(adata[:, m2].X).reshape(-1)
+    t1, t2 = np.quantile(v1, q), np.quantile(v2, q)
+    return float(((v1 >= t1) & (v2 >= t2)).mean())
+
+def evaluate_method(adata, labels_key):
+    res = {
+        "silhouette@UMAP": silhouette_on_umap(adata, labels_key),
+        "ARI": compute_ari(adata, labels_key, TRUE_LABELS)
+    }
+    for m in EXCLUSIVITY_MARKERS:
+        res[f"exclusivity[{m}]"] = marker_exclusivity(adata, labels_key, m)
+    for (m1, m2) in IMPLAUSIBLE_PAIRS:
+        res[f"implausible[{m1}&{m2}]"] = implausible_coexp_rate(adata, m1, m2)
+    return res
+
+methods = ["leiden", "kmeans", "gmm", starling_key]
+rows = []
+for key in methods:
+    if key in adata.obs.columns:
+        row = evaluate_method(adata, key)
+        row["method"] = key
+        rows.append(row)
+
+df = pd.DataFrame(rows).set_index("method").sort_index()
+display(df.round(4))
+df.to_csv(f"{OUT_DIR}/benchmark_metrics.csv", index=True)
+print(f"Saved metrics to {OUT_DIR}/benchmark_metrics.csv")
+
+# --- Plots: UMAP & Spatial ---
+for key in methods:
+    if key in adata.obs.columns:
+        sc.pl.umap(adata, color=key, title=f"UMAP — {key}", show=False)
+        plt.savefig(f"{OUT_DIR}/umap_{key}.png", dpi=200, bbox_inches="tight")
+        plt.close()
+
+has_spatial = (SPATIAL_X in adata.obs.columns) and (SPATIAL_Y in adata.obs.columns)
+if has_spatial:
+    for key in methods:
+        if key in adata.obs.columns:
+            try:
+                sc.pl.spatial(
+                    adata, color=key, title=f"Spatial — {key}",
+                    x=SPATIAL_X, y=SPATIAL_Y, spot_size=20, show=False
+                )
+                plt.savefig(f"{OUT_DIR}/spatial_{key}.png", dpi=200, bbox_inches="tight")
+                plt.close()
+            except Exception:
+                plt.figure()
+                ax = plt.gca()
+                ax.scatter(
+                    adata.obs[SPATIAL_X], adata.obs[SPATIAL_Y],
+                    c=pd.Categorical(adata.obs[key]).codes, s=5
+                )
+                ax.set_title(f"Spatial — {key}")
+                ax.set_aspect("equal")
+                plt.savefig(f"{OUT_DIR}/spatial_{key}.png", dpi=200, bbox_inches="tight")
+                plt.close()
+
+print("Wrote figures to:", OUT_DIR)
+</code></pre>
 
 
 </div>
