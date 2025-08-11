@@ -105,14 +105,6 @@
 </p>
 
 <hr>
-
-<h2><a href="https://colab.research.google.com/drive/14Gk-lnKaCmIEjq99w7kB7DJDBJYTkO3R#scrollTo=kGAECVoWF34A" target="_blank">Example Pipeline</a></h2>
-<p>
-    Click the heading above to see a full example pipeline for running STARLING, from installation to visualization.
-    This external page provides a step-by-step breakdown of the data preprocessing, clustering, and plotting process.
-</p>
-
-<hr>
 <h2>Step 1: Imports</h2>
 
 <p>
@@ -210,8 +202,7 @@ DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
 
 <hr>
 
-<h2>Step 4: (Next Steps)</h2>
-<h2>Step 1: Understanding the Data & Key Methods</h2>
+<h2>Step 5: Understanding the Data & Key Methods</h2>
 
 <p>
     <code>.h5ad</code> is the standard file format used by <code>AnnData</code> to store single-cell datasets. It typically contains:
@@ -258,7 +249,7 @@ DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
     <li><code>sc.tl.umap()</code>: Runs UMAP for visualization.</li>
 </ul>
 
-<h2>Step 2: Example Benchmark Script</h2>
+<h2>Step 6: Example Benchmark Script</h2>
 
 <pre><code class="language-python">
 # =========================
@@ -312,7 +303,7 @@ adata.obs["kmeans"] = KMeans(n_clusters=K_TARGET, n_init="auto", random_state=0)
 adata.obs["gmm"] = GaussianMixture(n_components=K_TARGET, covariance_type="full", random_state=0).fit_predict(X_scaled).astype(str)
 </code></pre>
 
-    <h2>Step 3: Running STARLING & Evaluating Results</h2>
+    <h2>Step 7: Running STARLING & Evaluating Results</h2>
 
 <p>
     <b><code>use_cell_size</code>:</b> Checks if the dataset contains cell area measurements; includes them in the model if available.
@@ -475,7 +466,7 @@ if label_key != "starling_labels":
     adata.obs["starling_labels"] = adata.obs[label_key].astype(str).values
 print(f"Using STARLING labels from obs['{label_key}'] -> obs['starling_labels']")
 </code></pre>
-<h2>Step 4: Metrics & Visualization</h2>
+<h2>Step 8: Metrics & Visualization</h2>
 
 <p>
     This section defines helper functions to compute clustering evaluation metrics, applies them to each method, saves the results, and generates UMAP and spatial plots.
@@ -629,7 +620,7 @@ if has_spatial:
 
 print("Wrote figures to:", OUT_DIR)
 </code></pre>
-<h2>Step 5: Comparing Unweighted vs Weighted UMAP</h2>
+<h2>Step 9: Comparing Unweighted vs Weighted UMAP</h2>
 
 <p>
     This section compares UMAP embeddings computed from <b>unweighted</b> vs <b>segmentation-error–weighted</b> neighbor graphs.  
@@ -716,7 +707,7 @@ def plot_side_by_side(adata, labels_key, out_png):
 plot_side_by_side(adata, label_key, "umap_unweighted_vs_weighted.png")
 </code></pre>
 
-    <h2>Step 6: UMAP Morphing Animations</h2>
+    <h2>Step 10: UMAP Morphing Animations</h2>
 
 <p>
     This section creates smooth animations morphing between two different UMAP layouts (or color labelings),  
