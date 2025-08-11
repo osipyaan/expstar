@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- Highlight.js CSS (dark theme) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+
+<!-- Highlight.js library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<!-- Auto-init -->
+<script>hljs.highlightAll();</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>STARLING Example Pipeline</title>
@@ -95,19 +103,15 @@
     Credit to <strong>Campbell Lab</strong> for developing the STARLING library and providing the sample code:
     <a href= https://colab.research.google.com/github/camlab-bioml/starling/blob/main/docs/source/tutorial/getting-started.ipynb>[Campbell Lab Link]</a>
 </p>
-</section>
 
 <hr>
 
-<section id="tut2">
 <h2><a href="https://colab.research.google.com/drive/14Gk-lnKaCmIEjq99w7kB7DJDBJYTkO3R#scrollTo=kGAECVoWF34A" target="_blank">Example Pipeline</a></h2>
 <p>
     Click the heading above to see a full example pipeline for running STARLING, from installation to visualization.
     This external page provides a step-by-step breakdown of the data preprocessing, clustering, and plotting process.
 </p>
-</section>
 
-<section id="tut3">
 <hr>
 <h2>Step 1: Imports</h2>
 
@@ -157,7 +161,6 @@ import pytorch_lightning as pl
 </code></pre>
 </section>
 
-<section id="tut4">
 <hr>
 
 <h2>Step 2: Setting the Seed</h2>
@@ -170,7 +173,6 @@ import pytorch_lightning as pl
 <pre><code class="language-python">
 seed_everything(10, workers=True)
 </code></pre>
-</section>
     
 <hr>
 
