@@ -620,6 +620,172 @@ if has_spatial:
 
 print("Wrote figures to:", OUT_DIR)
 </code></pre>
+<h2>Step 5: Comparing Unweighted vs Weighted UMAP</h2>
+
+<p>
+    This section compares UMAP embeddings computed from <b>unweighted</b> vs <b>segmentation-error–weighted</b> neighbor graphs.  
+    The goal is to check whether accounting for segmentation error changes cluster separation in the low-dimensional layout.
+</p>
+
+<h3>Workflow</h3>
+<ol>
+    <li>
+        <b>Ensure unweighted UMAP is available:</b>  
+        If <code>X_umap</code> is missing from <code>adata.obsm</code>, build a k-nearest-neighbor graph using unweighted principal components (<code>X_pca</code>), then run UMAP. Save the result as <code>X_umap_unweighted</code>.
+    </li>
+    <li>
+        <b>Compute weighted UMAP:</b>  
+        Build neighbors using weighted principal components (<code>X_pca_weighted</code>).  
+        Run UMAP, preferring to save to <code>umap_weighted</code> via the <code>key_added</code> argument if available.  
+        Fallback: if Scanpy is too old to support <code>key_added</code>, UMAP may overwrite <code>X_umap</code>.
+    </li>
+    <li>
+        <b>Normalize keys:</b>  
+        Ensure <code>X_umap_weighted</code> exists. If the key was ignored, manually copy the overwritten <code>X_umap</code> to <code>X_umap_weighted</code> and restore <code>X_umap</code> from <code>X_umap_unweighted</code>.
+    </li>
+    <li>
+        <b>Recompute silhouette scores:</b>  
+        Use <code>safe_sil(...)</code> to compute silhouette@UMAP for unweighted and weighted embeddings, handling missing or single-cluster cases.
+    </li>
+    <li>
+        <b>Side-by-side plot:</b>  
+        Visualize unweighted vs weighted UMAP embeddings in the same figure, coloring points by cluster labels.
+    </li>
+</ol>
+
+<pre><code class="language-python">
+# 1) Ensure we have an unweighted UMAP saved
+if "X_umap" not in adata.obsm:
+    sc.pp.neighbors(adata, use_rep="X_pca", n_neighbors=15, key_added="neighbors_unweighted")
+    sc.tl.umap(adata, min_dist=0.3)
+adata.obsm["X_umap_unweighted"] = adata.obsm["X_umap"].copy()
+
+# 2) Compute weighted UMAP using weighted graph
+sc.pp.neighbors(adata, use_rep="X_pca_weighted", n_neighbors=15, key_added="neighbors_weighted")
+try:
+    sc.tl.umap(adata, min_dist=0.3, key_added="umap_weighted")  # preferred
+except TypeError:
+    sc.tl.umap(adata, min_dist=0.3)  # older Scanpy fallback
+
+# 3) Normalize keys
+if "X_umap_weighted" not in adata.obsm:
+    adata.obsm["X_umap_weighted"] = adata.obsm["X_umap"].copy()
+    adata.obsm["X_umap"] = adata.obsm["X_umap_unweighted"].copy()
+
+# 4) Recompute silhouettes
+from sklearn.metrics import silhouette_score
+
+label_key = "starling_labels" if "starling_labels" in adata.obs else \
+            ("leiden" if "leiden" in adata.obs else list(adata.obs.columns)[0])
+
+def safe_sil(emb, labels):
+    if emb is None or len(np.unique(labels)) < 2: return np.nan
+    return float(silhouette_score(emb, labels))
+
+sil_base = safe_sil(adata.obsm.get("X_umap_unweighted"), adata.obs[label_key].values)
+sil_w    = safe_sil(adata.obsm.get("X_umap_weighted"),   adata.obs[label_key].values)
+print(f"Silhouette@UMAP (unweighted → weighted) [{label_key}]: {sil_base:.4f} → {sil_w:.4f}")
+
+# Side-by-side plotting
+def plot_side_by_side(adata, labels_key, out_png):
+    import matplotlib.pyplot as plt
+    labs = pd.Categorical(adata.obs[labels_key].astype(str))
+    palette = plt.cm.tab20(np.linspace(0,1,max(20, labs.categories.size)))
+    cmap = {lab: palette[i % len(palette)] for i, lab in enumerate(labs.categories)}
+    colors = np.array([cmap[v] for v in labs])
+
+    U0 = adata.obsm["X_umap_unweighted"]
+    U1 = adata.obsm["X_umap_weighted"]
+    fig, axes = plt.subplots(1, 2, figsize=(9,4), dpi=160)
+    for ax, U, title in zip(axes, [U0, U1], ["Unweighted UMAP", "Seg.-Error–Aware UMAP"]):
+        ax.scatter(U[:,0], U[:,1], s=6, c=colors, linewidth=0)
+        ax.set_title(title); ax.axis("off"); ax.set_aspect("equal")
+    plt.tight_layout()
+    plt.savefig(f"{OUT_DIR}/{out_png}", dpi=300, bbox_inches="tight")
+    plt.show()
+
+plot_side_by_side(adata, label_key, "umap_unweighted_vs_weighted.png")
+</code></pre>
+
+    <h2>Step 6: UMAP Morphing Animations</h2>
+
+<p>
+    This section creates smooth animations morphing between two different UMAP layouts (or color labelings),  
+    allowing you to visually compare how cluster assignments change between methods (e.g., <code>KMeans</code> → <code>STARLING</code>).
+</p>
+
+<h3>Workflow</h3>
+<ol>
+    <li>
+        <b>Output directory:</b>  
+        Ensure a <code>videos</code> folder exists for saving animations.
+    </li>
+    <li>
+        <b>make_umap_morph(...)</b> function:
+        <ul>
+            <li><b>Inputs:</b> starting method (<code>method_from</code>), ending method (<code>method_to</code>), base filename (<code>fname_base</code>), animation duration (<code>seconds</code>), and frames per second (<code>fps</code>).</li>
+            <li>Extracts colors for the start and end layouts using <code>labels_to_colors()</code>.</li>
+            <li>Initializes a scatter plot with starting colors and stores coordinates (<code>x</code>, <code>y</code>).</li>
+            <li>Uses an <b>ease in-out</b> function to smoothly transition colors over time.</li>
+            <li>Updates colors frame-by-frame via <code>FuncAnimation</code> from Matplotlib.</li>
+            <li>Saves animations as both GIF (<code>PillowWriter</code>) and MP4 (<code>FFMpegWriter</code> if available).</li>
+        </ul>
+    </li>
+    <li>
+        <b>Creating morphs:</b>  
+        Runs <code>make_umap_morph</code> for:
+        <ul>
+            <li><code>KMeans</code> → <code>STARLING</code></li>
+            <li><code>GMM</code> → <code>STARLING</code></li>
+        </ul>
+        Only if both methods are present in <code>all_methods</code>.
+    </li>
+</ol>
+
+<pre><code class="language-python">
+import os
+from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter
+
+os.makedirs("videos", exist_ok=True)
+
+def make_umap_morph(method_from, method_to, fname_base, seconds=4, fps=20):
+    # Colors for start/end
+    c0 = labels_to_colors(adata.obs[method_from].values[order])
+    c1 = labels_to_colors(adata.obs[method_to].values[order])
+
+    fig, ax = plt.subplots(figsize=(5,4), dpi=150)
+    ax.set_xticks([]); ax.set_yticks([])
+    ax.set_title(f"UMAP: {method_from} → {method_to}")
+    sc = ax.scatter(x, y, s=6, c=c0)
+    ax.set_aspect("equal")
+
+    frames = seconds * fps
+    def ease(t):  # smooth in-out
+        return 0.5 - 0.5*np.cos(np.pi*t)
+
+    def update(i):
+        t = ease(i / (frames-1))
+        # Cross-fade colors in RGB space
+        sc.set_color((1-t)*c0 + t*c1)
+        ax.set_title(f"UMAP: {method_from} → {method_to}  (t={t:.2f})")
+        return (sc,)
+
+    anim = FuncAnimation(fig, update, frames=frames, interval=1000/fps, blit=True)
+    # MP4 (if ffmpeg available) + GIF
+    try:
+        anim.save(f"videos/{fname_base}.mp4", writer=FFMpegWriter(fps=fps))
+    except Exception:
+        pass
+    anim.save(f"videos/{fname_base}.gif", writer=PillowWriter(fps=fps))
+    plt.close(fig)
+    print(f"Wrote videos/{fname_base}.gif (and .mp4 if ffmpeg present)")
+
+# Create morphs
+if "kmeans" in all_methods and "starling_labels" in all_methods:
+    make_umap_morph("kmeans", "starling_labels", "umap_kmeans_to_starling", seconds=4, fps=20)
+if "gmm" in all_methods and "starling_labels" in all_methods:
+    make_umap_morph("gmm", "starling_labels", "umap_gmm_to_starling", seconds=4, fps=20)
+</code></pre>
 
 
 </div>
