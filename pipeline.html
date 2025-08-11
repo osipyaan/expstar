@@ -288,77 +288,29 @@ adata = utility.init_clustering("KM", ad.read_h5ad(DATA_PATH), k=K_TARGET)
 </code></pre>
 
 
-    <h2>Step 7: Running STARLING & Evaluating Results</h2>
+<h2>Step 7: Running STARLING & Evaluating Results</h2>
 
 <p>
-    <b><code>use_cell_size</code>:</b> Checks if the dataset contains cell area measurements; includes them in the model if available.
+    First, check whether the dataset contains cell area measurements.  
+    If so, set <code>use_cell_size</code> to <code>True</code> so STARLING can include them in the model.
 </p>
+<pre><code class="language-python">
+use_cell_size = ("area" in adata.obs.columns)
+</code></pre>
 
 <p>
-    <b><code>ST(...)</code>:</b> Creates a STARLING model with key parameters:
+    Next, create the STARLING model using <code>ST(...)</code> and set its parameters:
 </p>
 <ul>
     <li><code>dist_option='T'</code> — Distance metric for comparing cells.</li>
-    <li><code>singlet_prop</code> — Weight for “pure” (non-overlapping) cells.</li>
+    <li><code>singlet_prop=0.6</code> — Weight for “pure” (non-overlapping) cells.</li>
     <li><code>model_cell_size</code> — Whether to use cell area in clustering.</li>
-    <li><code>model_zplane_overlap</code> — Whether to model z-axis cell overlaps.</li>
-    <li><code>model_regularizer</code> — Penalty to prevent overfitting.</li>
-    <li><code>learning_rate</code> — Training step size.</li>
+    <li><code>cell_size_col_name='area'</code> — Column name for cell area.</li>
+    <li><code>model_zplane_overlap=True</code> — Whether to model z-axis overlaps.</li>
+    <li><code>model_regularizer=1.0</code> — Penalty to prevent overfitting.</li>
+    <li><code>learning_rate=1e-3</code> — Step size for model training.</li>
 </ul>
-
-<p>
-    <b><code>st.train_and_fit()</code>:</b> Trains the STARLING model on the input data.
-</p>
-
-<p>
-    STARLING’s predicted cluster IDs may be stored in different places depending on version/configuration, so the code:
-</p>
-<ol>
-    <li>Checks for new columns in <code>.obs</code> with names like “starling”, “cluster”, “assign”, “pred”.</li>
-    <li>If none found, searches all <code>.obs</code> columns for similar names.</li>
-    <li>Tests if the column looks like valid labels (categorical, 2+ unique values, fewer than number of cells).</li>
-    <li>Falls back to searching <code>.uns</code>, <code>.obsm</code>, or common <code>ST</code> object attributes.</li>
-</ol>
-
-<h3>Metric helpers</h3>
-<ul>
-    <li><b><code>silhouette_on_umap(adata, labels_key)</code></b> — Computes silhouette score in 2D UMAP space:
-        <br>Formula: <code>s(i) = (b(i) - a(i)) / max(a(i), b(i))</code>  
-        where <code>a(i)</code> is average intra-cluster distance, <code>b(i)</code> is smallest average inter-cluster distance.  
-        Range: [-1, 1], higher = better.  
-        Caveat: Measures separation in UMAP space, which is nonlinear and can distort distances.
-    </li>
-    <li><b><code>compute_ari(adata, labels_key, truth_key)</code></b> — Adjusted Rand Index between predicted and true labels.  
-        Range: [-1, 1]; 0 ≈ random, 1 = perfect match; NaN if truth missing.
-    </li>
-    <li><b><code>marker_exclusivity(...)</code></b> — Measures if a marker is concentrated in a specific cluster.  
-        Score ≈ 1 means a cleanly owned marker.
-    </li>
-    <li><b><code>implausible_coexp_rate(...)</code></b> — Fraction of cells co-expressing two biologically implausible markers above the 90th percentile. Lower = better.</li>
-</ul>
-
-<h3>Aggregate evaluation</h3>
-<p>
-    <code>evaluate_method(...)</code> returns:
-</p>
-<ul>
-    <li>Silhouette@UMAP</li>
-    <li>ARI (if ground truth)</li>
-    <li>One exclusivity score per marker in <code>EXCLUSIVITY_MARKERS</code></li>
-    <li>One implausible co-expression rate per pair in <code>IMPLAUSIBLE_PAIRS</code></li>
-</ul>
-<p>
-    The script evaluates only methods present in <code>adata.obs</code> and saves results to <code>outputs/benchmark_metrics.csv</code>.
-</p>
-
-<h3>Visualization</h3>
-<p>
-    <code>sc.pl.umap(...)</code> colors cells by cluster label on the existing UMAP embedding and saves to <code>umap_{method}.png</code>.
-</p>
-
 <pre><code class="language-python">
-# --- Construct STARLING model ---
-use_cell_size = ("area" in adata.obs.columns)
 st = ST(
     adata=adata,
     dist_option='T',
@@ -369,13 +321,35 @@ st = ST(
     model_regularizer=1.0,
     learning_rate=1e-3
 )
+</code></pre>
 
+<p>
+    Train the STARLING model on the input data:
+</p>
+<pre><code class="language-python">
 st.train_and_fit()
+</code></pre>
 
-# Use adata inside ST if available
+<p>
+    After training, use the <code>adata</code> stored inside the STARLING object if available:
+</p>
+<pre><code class="language-python">
 adata = st.adata if hasattr(st, "adata") and st.adata is not None else adata
+</code></pre>
 
-# --- Locate STARLING labels ---
+<p>
+    STARLING’s predicted cluster labels might be saved in different places depending on the version/configuration.  
+    The code below tries multiple strategies to find them:
+</p>
+<ol>
+    <li>Check for new columns in <code>.obs</code> matching keywords like “starling”, “cluster”, or “assign”.</li>
+    <li>If none found, scan all <code>.obs</code> columns for similar names.</li>
+    <li>Verify columns look like labels (categorical, at least 2 unique values, fewer than total cells).</li>
+    <li>Check <code>.uns</code> and <code>.obsm</code> for stored predictions.</li>
+    <li>Search common <code>ST</code> attributes (e.g., <code>pred</code>, <code>labels_</code>, <code>assignments</code>).</li>
+    <li>As a last resort, scan <code>ST.__dict__</code> for any 1D array of length = number of cells.</li>
+</ol>
+<pre><code class="language-python">
 label_key = None
 n_cells = adata.n_obs
 pre_cols = set(adata.obs.columns)
@@ -383,13 +357,14 @@ post_cols = set(adata.obs.columns)
 new_cols = list(post_cols - pre_cols)
 priors = ["starling", "st", "cluster", "label", "assign", "pred"]
 
-# Check new obs columns
+# 1) New obs columns
 candidates = [c for c in new_cols if any(p in c.lower() for p in priors)]
 
-# Fallback: scan all obs cols
+# 2) Fallback: scan all obs cols
 if not candidates:
     candidates = [c for c in adata.obs.columns if any(p in c.lower() for p in priors)]
 
+# Check if the column looks like labels
 def looks_labelish(s):
     s = pd.Categorical(s)
     k = s.categories.size
@@ -399,8 +374,12 @@ for c in candidates:
     if looks_labelish(adata.obs[c]):
         label_key = c
         break
+</code></pre>
 
-# Check uns/obsm
+<p>
+    If still missing, check <code>.uns</code> and <code>.obsm</code>:
+</p>
+<pre><code class="language-python">
 if label_key is None:
     for store in (getattr(adata, "uns", {}), getattr(adata, "obsm", {})):
         for k, v in store.items():
@@ -414,8 +393,12 @@ if label_key is None:
                 pass
         if label_key is not None:
             break
+</code></pre>
 
-# Check ST attributes
+<p>
+    Then, check for attributes on the STARLING object:
+</p>
+<pre><code class="language-python">
 if label_key is None:
     for attr in ["pred", "labels_", "y_pred", "assignments", "clusters", "y", "labels"]:
         if hasattr(st, attr):
@@ -427,8 +410,12 @@ if label_key is None:
                     break
             except Exception:
                 pass
+</code></pre>
 
-# Scan ST.__dict__ for 1D arrays
+<p>
+    Finally, scan all attributes in <code>ST.__dict__</code>:
+</p>
+<pre><code class="language-python">
 if label_key is None:
     for k, v in st.__dict__.items():
         try:
@@ -440,76 +427,39 @@ if label_key is None:
                 break
         except Exception:
             pass
+</code></pre>
 
-# Debug if not found
+<p>
+    If no labels are found after all attempts, raise an error:
+</p>
+<pre><code class="language-python">
 if label_key is None:
     print("DEBUG: could not auto-find labels.")
     raise RuntimeError("STARLING labels not found; see debug output.")
+</code></pre>
 
-# Normalize key
+<p>
+    Standardize the label key so downstream code can always use <code>adata.obs["starling_labels"]</code>:
+</p>
+<pre><code class="language-python">
 if label_key != "starling_labels":
     adata.obs["starling_labels"] = adata.obs[label_key].astype(str).values
 print(f"Using STARLING labels from obs['{label_key}'] -> obs['starling_labels']")
 </code></pre>
+
 <h2>Step 8: Metrics & Visualization</h2>
 
 <p>
-    This section defines helper functions to compute clustering evaluation metrics, applies them to each method, saves the results, and generates UMAP and spatial plots.
+    We’ll now define helper functions to compute clustering evaluation metrics and apply them to each method.  
+    These metrics will be saved in <code>benchmark_metrics.csv</code>, and we’ll generate UMAP and spatial plots for visual inspection.
 </p>
 
-<h3>Metric functions</h3>
-<ul>
-    <li>
-        <b><code>silhouette_on_umap(adata, labels_key)</code></b> — Computes the silhouette score using the 2D UMAP embedding (<code>adata.obsm["X_umap"]</code>) and cluster labels.  
-        <ul>
-            <li>Formula: <code>s(i) = (b(i) - a(i)) / max(a(i), b(i))</code>, where <code>a(i)</code> = mean intra-cluster distance, <code>b(i)</code> = mean nearest-cluster distance.</li>
-            <li>Range: [-1, 1], higher = better.</li>
-            <li>NaN if fewer than two unique labels or no UMAP embedding.</li>
-        </ul>
-    </li>
-    <li>
-        <b><code>compute_ari(adata, labels_key, truth_key)</code></b> — Computes Adjusted Rand Index (ARI) between predicted labels and ground truth.  
-        <ul>
-            <li>Range: [-1, 1]; 0 ≈ random, 1 = perfect match.</li>
-            <li>NaN if <code>truth_key</code> missing.</li>
-        </ul>
-    </li>
-    <li>
-        <b><code>marker_exclusivity(...)</code></b> — Measures if a marker is concentrated in one cluster by comparing mean expression inside vs. outside the cluster.  
-        <ul>
-            <li>Score ≈ 1 means a cleanly “owned” marker.</li>
-            <li>NaN if marker missing.</li>
-        </ul>
-    </li>
-    <li>
-        <b><code>implausible_coexp_rate(...)</code></b> — Measures fraction of cells with high co-expression of two biologically implausible markers (above <code>q</code>-quantile).  
-        <ul>
-            <li>Lower = better.</li>
-            <li>NaN if either marker missing.</li>
-        </ul>
-    </li>
-</ul>
-
-<h3>Aggregate evaluation</h3>
 <p>
-    <code>evaluate_method(...)</code> returns a dictionary of:
+    First, define <code>silhouette_on_umap(...)</code> to measure how well-separated the clusters are in the 2D UMAP embedding.
+    This uses the formula:
+    <code>s(i) = (b(i) - a(i)) / max(a(i), b(i))</code>,  
+    where <code>a(i)</code> is the mean intra-cluster distance and <code>b(i)</code> is the mean nearest-cluster distance.
 </p>
-<ul>
-    <li>Silhouette@UMAP</li>
-    <li>ARI (if ground truth)</li>
-    <li>One exclusivity score per marker in <code>EXCLUSIVITY_MARKERS</code></li>
-    <li>One implausible co-expression rate per pair in <code>IMPLAUSIBLE_PAIRS</code></li>
-</ul>
-<p>
-    These are run for each clustering method present in <code>adata.obs</code>, compiled into a DataFrame, saved as <code>benchmark_metrics.csv</code>, and rounded to 4 decimals.
-</p>
-
-<h3>Visualization</h3>
-<ul>
-    <li><b>UMAP plots:</b> Colors cells by cluster labels and saves as <code>umap_{method}.png</code>.</li>
-    <li><b>Spatial plots:</b> If spatial coordinates (<code>SPATIAL_X</code>, <code>SPATIAL_Y</code>) are present, colors cells by cluster labels in spatial context. If <code>sc.pl.spatial</code> is unavailable, falls back to a simple scatter plot.</li>
-</ul>
-
 <pre><code class="language-python">
 def silhouette_on_umap(adata, labels_key):
     if "X_umap" not in adata.obsm or adata.obsm["X_umap"] is None:
@@ -519,13 +469,27 @@ def silhouette_on_umap(adata, labels_key):
     if len(np.unique(labs)) < 2:
         return np.nan
     return float(silhouette_score(emb, labs))
+</code></pre>
 
+<p>
+    Next, define <code>compute_ari(...)</code> to compare predicted labels against ground truth using the Adjusted Rand Index (ARI).  
+    This returns a value between -1 and 1 (0 ≈ random, 1 = perfect match).
+</p>
+<pre><code class="language-python">
 def compute_ari(adata, labels_key, truth_key):
     if truth_key is None or truth_key not in adata.obs.columns:
         return np.nan
-    return float(adjusted_rand_score(adata.obs[truth_key].values,
-                                     adata.obs[labels_key].values))
+    return float(adjusted_rand_score(
+        adata.obs[truth_key].values,
+        adata.obs[labels_key].values
+    ))
+</code></pre>
 
+<p>
+    Define <code>marker_exclusivity(...)</code> to measure whether a marker is concentrated in a specific cluster.  
+    Values near 1 mean that a cluster “owns” the marker with little expression outside.
+</p>
+<pre><code class="language-python">
 def marker_exclusivity(adata, labels_key, marker_name):
     if marker_name not in adata.var_names:
         return np.nan
@@ -540,7 +504,13 @@ def marker_exclusivity(adata, labels_key, marker_name):
         if score > best:
             best = score
     return float(best)
+</code></pre>
 
+<p>
+    Define <code>implausible_coexp_rate(...)</code> to measure the fraction of cells with high co-expression of two markers that shouldn’t co-occur biologically.
+    Lower values are better.
+</p>
+<pre><code class="language-python">
 def implausible_coexp_rate(adata, m1, m2, q=0.9):
     if (m1 not in adata.var_names) or (m2 not in adata.var_names):
         return np.nan
@@ -548,7 +518,13 @@ def implausible_coexp_rate(adata, m1, m2, q=0.9):
     v2 = _to_dense(adata[:, m2].X).reshape(-1)
     t1, t2 = np.quantile(v1, q), np.quantile(v2, q)
     return float(((v1 >= t1) & (v2 >= t2)).mean())
+</code></pre>
 
+<p>
+    With all metrics defined, we can create <code>evaluate_method(...)</code> to compute them for a given clustering method.  
+    This includes silhouette@UMAP, ARI, exclusivity scores, and implausible co-expression rates.
+</p>
+<pre><code class="language-python">
 def evaluate_method(adata, labels_key):
     res = {
         "silhouette@UMAP": silhouette_on_umap(adata, labels_key),
@@ -559,7 +535,12 @@ def evaluate_method(adata, labels_key):
     for (m1, m2) in IMPLAUSIBLE_PAIRS:
         res[f"implausible[{m1}&{m2}]"] = implausible_coexp_rate(adata, m1, m2)
     return res
+</code></pre>
 
+<p>
+    Now evaluate each clustering method present in <code>adata.obs</code> and save the results.
+</p>
+<pre><code class="language-python">
 methods = ["leiden", "kmeans", "gmm", starling_key]
 rows = []
 for key in methods:
@@ -572,14 +553,21 @@ df = pd.DataFrame(rows).set_index("method").sort_index()
 display(df.round(4))
 df.to_csv(f"{OUT_DIR}/benchmark_metrics.csv", index=True)
 print(f"Saved metrics to {OUT_DIR}/benchmark_metrics.csv")
+</code></pre>
 
-# --- Plots: UMAP & Spatial ---
+<p>
+    Finally, create UMAP and spatial plots for each method.  
+    UMAP plots color cells by cluster label; spatial plots position them according to <code>SPATIAL_X</code> and <code>SPATIAL_Y</code>.
+</p>
+<pre><code class="language-python">
+# UMAP plots
 for key in methods:
     if key in adata.obs.columns:
         sc.pl.umap(adata, color=key, title=f"UMAP — {key}", show=False)
         plt.savefig(f"{OUT_DIR}/umap_{key}.png", dpi=200, bbox_inches="tight")
         plt.close()
 
+# Spatial plots
 has_spatial = (SPATIAL_X in adata.obs.columns) and (SPATIAL_Y in adata.obs.columns)
 if has_spatial:
     for key in methods:
@@ -605,134 +593,123 @@ if has_spatial:
 
 print("Wrote figures to:", OUT_DIR)
 </code></pre>
+
 <h2>Step 9: Comparing Unweighted vs Weighted UMAP</h2>
 
 <p>
-    This section compares UMAP embeddings computed from <b>unweighted</b> vs <b>segmentation-error–weighted</b> neighbor graphs.  
-    The goal is to check whether accounting for segmentation error changes cluster separation in the low-dimensional layout.
+    We now compare UMAP embeddings computed from <b>unweighted</b> vs <b>segmentation-error–weighted</b> neighbor graphs.  
+    This lets us see whether accounting for segmentation error changes how clusters are separated in the low-dimensional layout.
 </p>
 
-<h3>Workflow</h3>
-<ol>
-    <li>
-        <b>Ensure unweighted UMAP is available:</b>  
-        If <code>X_umap</code> is missing from <code>adata.obsm</code>, build a k-nearest-neighbor graph using unweighted principal components (<code>X_pca</code>), then run UMAP. Save the result as <code>X_umap_unweighted</code>.
-    </li>
-    <li>
-        <b>Compute weighted UMAP:</b>  
-        Build neighbors using weighted principal components (<code>X_pca_weighted</code>).  
-        Run UMAP, preferring to save to <code>umap_weighted</code> via the <code>key_added</code> argument if available.  
-        Fallback: if Scanpy is too old to support <code>key_added</code>, UMAP may overwrite <code>X_umap</code>.
-    </li>
-    <li>
-        <b>Normalize keys:</b>  
-        Ensure <code>X_umap_weighted</code> exists. If the key was ignored, manually copy the overwritten <code>X_umap</code> to <code>X_umap_weighted</code> and restore <code>X_umap</code> from <code>X_umap_unweighted</code>.
-    </li>
-    <li>
-        <b>Recompute silhouette scores:</b>  
-        Use <code>safe_sil(...)</code> to compute silhouette@UMAP for unweighted and weighted embeddings, handling missing or single-cluster cases.
-    </li>
-    <li>
-        <b>Side-by-side plot:</b>  
-        Visualize unweighted vs weighted UMAP embeddings in the same figure, coloring points by cluster labels.
-    </li>
-</ol>
-
+<p>
+    First, ensure an <code>X_umap</code> (unweighted UMAP) is available.  
+    If missing, build a k-nearest-neighbor graph using unweighted principal components (<code>X_pca</code>) and run UMAP.  
+    Save the result as <code>X_umap_unweighted</code>.
+</p>
 <pre><code class="language-python">
-# 1) Ensure we have an unweighted UMAP saved
 if "X_umap" not in adata.obsm:
     sc.pp.neighbors(adata, use_rep="X_pca", n_neighbors=15, key_added="neighbors_unweighted")
     sc.tl.umap(adata, min_dist=0.3)
 adata.obsm["X_umap_unweighted"] = adata.obsm["X_umap"].copy()
+</code></pre>
 
-# 2) Compute weighted UMAP using weighted graph
+<p>
+    Next, compute the <b>weighted UMAP</b> using the weighted principal components (<code>X_pca_weighted</code>).  
+    Prefer using <code>key_added="umap_weighted"</code> to store it separately, but if Scanpy is too old to support this, the call may overwrite <code>X_umap</code>.
+</p>
+<pre><code class="language-python">
 sc.pp.neighbors(adata, use_rep="X_pca_weighted", n_neighbors=15, key_added="neighbors_weighted")
 try:
     sc.tl.umap(adata, min_dist=0.3, key_added="umap_weighted")  # preferred
 except TypeError:
     sc.tl.umap(adata, min_dist=0.3)  # older Scanpy fallback
+</code></pre>
 
-# 3) Normalize keys
+<p>
+    Normalize keys so that <code>X_umap_weighted</code> always exists.  
+    If <code>key_added</code> was ignored and <code>X_umap</code> got overwritten, copy it to <code>X_umap_weighted</code> and restore the original unweighted embedding.
+</p>
+<pre><code class="language-python">
 if "X_umap_weighted" not in adata.obsm:
     adata.obsm["X_umap_weighted"] = adata.obsm["X_umap"].copy()
     adata.obsm["X_umap"] = adata.obsm["X_umap_unweighted"].copy()
+</code></pre>
 
-# 4) Recompute silhouettes
+<p>
+    We then recompute silhouette scores for both the unweighted and weighted embeddings.  
+    The helper <code>safe_sil(...)</code> checks that the embedding exists and that there are at least two unique clusters before computing the score.
+</p>
+<pre><code class="language-python">
 from sklearn.metrics import silhouette_score
 
 label_key = "starling_labels" if "starling_labels" in adata.obs else \
             ("leiden" if "leiden" in adata.obs else list(adata.obs.columns)[0])
 
 def safe_sil(emb, labels):
-    if emb is None or len(np.unique(labels)) < 2: return np.nan
+    if emb is None or len(np.unique(labels)) < 2:
+        return np.nan
     return float(silhouette_score(emb, labels))
 
 sil_base = safe_sil(adata.obsm.get("X_umap_unweighted"), adata.obs[label_key].values)
 sil_w    = safe_sil(adata.obsm.get("X_umap_weighted"),   adata.obs[label_key].values)
 print(f"Silhouette@UMAP (unweighted → weighted) [{label_key}]: {sil_base:.4f} → {sil_w:.4f}")
+</code></pre>
 
-# Side-by-side plotting
+<p>
+    Finally, visualize the two embeddings side by side using <code>plot_side_by_side(...)</code>.  
+    This function colors cells by their cluster labels and displays both unweighted and segmentation-error–aware UMAPs in the same figure.
+</p>
+<pre><code class="language-python">
 def plot_side_by_side(adata, labels_key, out_png):
     import matplotlib.pyplot as plt
     labs = pd.Categorical(adata.obs[labels_key].astype(str))
-    palette = plt.cm.tab20(np.linspace(0,1,max(20, labs.categories.size)))
+    palette = plt.cm.tab20(np.linspace(0, 1, max(20, labs.categories.size)))
     cmap = {lab: palette[i % len(palette)] for i, lab in enumerate(labs.categories)}
     colors = np.array([cmap[v] for v in labs])
 
     U0 = adata.obsm["X_umap_unweighted"]
     U1 = adata.obsm["X_umap_weighted"]
-    fig, axes = plt.subplots(1, 2, figsize=(9,4), dpi=160)
+    fig, axes = plt.subplots(1, 2, figsize=(9, 4), dpi=160)
     for ax, U, title in zip(axes, [U0, U1], ["Unweighted UMAP", "Seg.-Error–Aware UMAP"]):
-        ax.scatter(U[:,0], U[:,1], s=6, c=colors, linewidth=0)
-        ax.set_title(title); ax.axis("off"); ax.set_aspect("equal")
+        ax.scatter(U[:, 0], U[:, 1], s=6, c=colors, linewidth=0)
+        ax.set_title(title)
+        ax.axis("off")
+        ax.set_aspect("equal")
     plt.tight_layout()
     plt.savefig(f"{OUT_DIR}/{out_png}", dpi=300, bbox_inches="tight")
     plt.show()
 
 plot_side_by_side(adata, label_key, "umap_unweighted_vs_weighted.png")
 </code></pre>
-
-    <h2>Step 10: UMAP Morphing Animations</h2>
+<h2>Step 10: UMAP Morphing Animations</h2>
 
 <p>
-    This section creates smooth animations morphing between two different UMAP layouts (or color labelings),  
-    allowing you to visually compare how cluster assignments change between methods (e.g., <code>KMeans</code> → <code>STARLING</code>).
+    We can make smooth animations morphing between two UMAP layouts (or color labelings).  
+    This visually shows how cluster assignments change between methods, e.g., <code>KMeans</code> → <code>STARLING</code>.
 </p>
 
-<h3>Workflow</h3>
-<ol>
-    <li>
-        <b>Output directory:</b>  
-        Ensure a <code>videos</code> folder exists for saving animations.
-    </li>
-    <li>
-        <b>make_umap_morph(...)</b> function:
-        <ul>
-            <li><b>Inputs:</b> starting method (<code>method_from</code>), ending method (<code>method_to</code>), base filename (<code>fname_base</code>), animation duration (<code>seconds</code>), and frames per second (<code>fps</code>).</li>
-            <li>Extracts colors for the start and end layouts using <code>labels_to_colors()</code>.</li>
-            <li>Initializes a scatter plot with starting colors and stores coordinates (<code>x</code>, <code>y</code>).</li>
-            <li>Uses an <b>ease in-out</b> function to smoothly transition colors over time.</li>
-            <li>Updates colors frame-by-frame via <code>FuncAnimation</code> from Matplotlib.</li>
-            <li>Saves animations as both GIF (<code>PillowWriter</code>) and MP4 (<code>FFMpegWriter</code> if available).</li>
-        </ul>
-    </li>
-    <li>
-        <b>Creating morphs:</b>  
-        Runs <code>make_umap_morph</code> for:
-        <ul>
-            <li><code>KMeans</code> → <code>STARLING</code></li>
-            <li><code>GMM</code> → <code>STARLING</code></li>
-        </ul>
-        Only if both methods are present in <code>all_methods</code>.
-    </li>
-</ol>
-
+<p>
+    First, create an output folder called <code>videos</code> to store the animations.
+</p>
 <pre><code class="language-python">
 import os
 from matplotlib.animation import FuncAnimation, PillowWriter, FFMpegWriter
 
 os.makedirs("videos", exist_ok=True)
+</code></pre>
 
+<p>
+    Next, define <code>make_umap_morph(...)</code>, which will:
+</p>
+<ul>
+    <li>Take in a starting method (<code>method_from</code>), ending method (<code>method_to</code>), base filename, animation length in seconds, and frames per second.</li>
+    <li>Extract colors for start and end layouts using <code>labels_to_colors()</code>.</li>
+    <li>Set up the plot using the stored <code>x</code> and <code>y</code> coordinates from the UMAP embedding.</li>
+    <li>Use an <em>ease in–out</em> function for a smooth transition.</li>
+    <li>Update the scatterplot colors frame-by-frame with <code>FuncAnimation</code>.</li>
+    <li>Save the result as both GIF and MP4 (if FFmpeg is available).</li>
+</ul>
+<pre><code class="language-python">
 def make_umap_morph(method_from, method_to, fname_base, seconds=4, fps=20):
     # Colors for start/end
     c0 = labels_to_colors(adata.obs[method_from].values[order])
@@ -745,7 +722,7 @@ def make_umap_morph(method_from, method_to, fname_base, seconds=4, fps=20):
     ax.set_aspect("equal")
 
     frames = seconds * fps
-    def ease(t):  # smooth in-out
+    def ease(t):  # smooth in-out curve
         return 0.5 - 0.5*np.cos(np.pi*t)
 
     def update(i):
@@ -756,7 +733,8 @@ def make_umap_morph(method_from, method_to, fname_base, seconds=4, fps=20):
         return (sc,)
 
     anim = FuncAnimation(fig, update, frames=frames, interval=1000/fps, blit=True)
-    # MP4 (if ffmpeg available) + GIF
+
+    # Save as MP4 (if available) and GIF
     try:
         anim.save(f"videos/{fname_base}.mp4", writer=FFMpegWriter(fps=fps))
     except Exception:
@@ -764,12 +742,27 @@ def make_umap_morph(method_from, method_to, fname_base, seconds=4, fps=20):
     anim.save(f"videos/{fname_base}.gif", writer=PillowWriter(fps=fps))
     plt.close(fig)
     print(f"Wrote videos/{fname_base}.gif (and .mp4 if ffmpeg present)")
+</code></pre>
 
-# Create morphs
+<p>
+    Finally, call <code>make_umap_morph</code> for any pairs of methods you want to compare.  
+    Here, we generate animations for:
+</p>
+<ul>
+    <li><code>KMeans</code> → <code>STARLING</code></li>
+    <li><code>GMM</code> → <code>STARLING</code></li>
+</ul>
+<p>
+    These are only run if both methods are present in <code>all_methods</code>.
+</p>
+<pre><code class="language-python">
 if "kmeans" in all_methods and "starling_labels" in all_methods:
-    make_umap_morph("kmeans", "starling_labels", "umap_kmeans_to_starling", seconds=4, fps=20)
+    make_umap_morph("kmeans", "starling_labels",
+                    "umap_kmeans_to_starling", seconds=4, fps=20)
+
 if "gmm" in all_methods and "starling_labels" in all_methods:
-    make_umap_morph("gmm", "starling_labels", "umap_gmm_to_starling", seconds=4, fps=20)
+    make_umap_morph("gmm", "starling_labels",
+                    "umap_gmm_to_starling", seconds=4, fps=20)
 </code></pre>
 
 
