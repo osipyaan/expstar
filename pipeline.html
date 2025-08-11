@@ -303,6 +303,170 @@ adata.obs["kmeans"] = KMeans(n_clusters=K_TARGET, n_init="auto", random_state=0)
 adata.obs["gmm"] = GaussianMixture(n_components=K_TARGET, covariance_type="full", random_state=0).fit_predict(X_scaled).astype(str)
 </code></pre>
 
+    <h2>Step 3: Running STARLING & Evaluating Results</h2>
+
+<p>
+    <b><code>use_cell_size</code>:</b> Checks if the dataset contains cell area measurements; includes them in the model if available.
+</p>
+
+<p>
+    <b><code>ST(...)</code>:</b> Creates a STARLING model with key parameters:
+</p>
+<ul>
+    <li><code>dist_option='T'</code> — Distance metric for comparing cells.</li>
+    <li><code>singlet_prop</code> — Weight for “pure” (non-overlapping) cells.</li>
+    <li><code>model_cell_size</code> — Whether to use cell area in clustering.</li>
+    <li><code>model_zplane_overlap</code> — Whether to model z-axis cell overlaps.</li>
+    <li><code>model_regularizer</code> — Penalty to prevent overfitting.</li>
+    <li><code>learning_rate</code> — Training step size.</li>
+</ul>
+
+<p>
+    <b><code>st.train_and_fit()</code>:</b> Trains the STARLING model on the input data.
+</p>
+
+<p>
+    STARLING’s predicted cluster IDs may be stored in different places depending on version/configuration, so the code:
+</p>
+<ol>
+    <li>Checks for new columns in <code>.obs</code> with names like “starling”, “cluster”, “assign”, “pred”.</li>
+    <li>If none found, searches all <code>.obs</code> columns for similar names.</li>
+    <li>Tests if the column looks like valid labels (categorical, 2+ unique values, fewer than number of cells).</li>
+    <li>Falls back to searching <code>.uns</code>, <code>.obsm</code>, or common <code>ST</code> object attributes.</li>
+</ol>
+
+<h3>Metric helpers</h3>
+<ul>
+    <li><b><code>silhouette_on_umap(adata, labels_key)</code></b> — Computes silhouette score in 2D UMAP space:
+        <br>Formula: <code>s(i) = (b(i) - a(i)) / max(a(i), b(i))</code>  
+        where <code>a(i)</code> is average intra-cluster distance, <code>b(i)</code> is smallest average inter-cluster distance.  
+        Range: [-1, 1], higher = better.  
+        Caveat: Measures separation in UMAP space, which is nonlinear and can distort distances.
+    </li>
+    <li><b><code>compute_ari(adata, labels_key, truth_key)</code></b> — Adjusted Rand Index between predicted and true labels.  
+        Range: [-1, 1]; 0 ≈ random, 1 = perfect match; NaN if truth missing.
+    </li>
+    <li><b><code>marker_exclusivity(...)</code></b> — Measures if a marker is concentrated in a specific cluster.  
+        Score ≈ 1 means a cleanly owned marker.
+    </li>
+    <li><b><code>implausible_coexp_rate(...)</code></b> — Fraction of cells co-expressing two biologically implausible markers above the 90th percentile. Lower = better.</li>
+</ul>
+
+<h3>Aggregate evaluation</h3>
+<p>
+    <code>evaluate_method(...)</code> returns:
+</p>
+<ul>
+    <li>Silhouette@UMAP</li>
+    <li>ARI (if ground truth)</li>
+    <li>One exclusivity score per marker in <code>EXCLUSIVITY_MARKERS</code></li>
+    <li>One implausible co-expression rate per pair in <code>IMPLAUSIBLE_PAIRS</code></li>
+</ul>
+<p>
+    The script evaluates only methods present in <code>adata.obs</code> and saves results to <code>outputs/benchmark_metrics.csv</code>.
+</p>
+
+<h3>Visualization</h3>
+<p>
+    <code>sc.pl.umap(...)</code> colors cells by cluster label on the existing UMAP embedding and saves to <code>umap_{method}.png</code>.
+</p>
+
+<pre><code class="language-python">
+# --- Construct STARLING model ---
+use_cell_size = ("area" in adata.obs.columns)
+st = ST(
+    adata=adata,
+    dist_option='T',
+    singlet_prop=0.6,
+    model_cell_size=use_cell_size,
+    cell_size_col_name='area',
+    model_zplane_overlap=True,
+    model_regularizer=1.0,
+    learning_rate=1e-3
+)
+
+st.train_and_fit()
+
+# Use adata inside ST if available
+adata = st.adata if hasattr(st, "adata") and st.adata is not None else adata
+
+# --- Locate STARLING labels ---
+label_key = None
+n_cells = adata.n_obs
+pre_cols = set(adata.obs.columns)
+post_cols = set(adata.obs.columns)
+new_cols = list(post_cols - pre_cols)
+priors = ["starling", "st", "cluster", "label", "assign", "pred"]
+
+# Check new obs columns
+candidates = [c for c in new_cols if any(p in c.lower() for p in priors)]
+
+# Fallback: scan all obs cols
+if not candidates:
+    candidates = [c for c in adata.obs.columns if any(p in c.lower() for p in priors)]
+
+def looks_labelish(s):
+    s = pd.Categorical(s)
+    k = s.categories.size
+    return (k >= 2) and (k <= int(len(s) * 0.9))
+
+for c in candidates:
+    if looks_labelish(adata.obs[c]):
+        label_key = c
+        break
+
+# Check uns/obsm
+if label_key is None:
+    for store in (getattr(adata, "uns", {}), getattr(adata, "obsm", {})):
+        for k, v in store.items():
+            try:
+                arr = np.asarray(v)
+                if arr.ndim == 1 and arr.shape[0] == n_cells:
+                    adata.obs["starling_labels"] = pd.Series(arr).astype(str).values
+                    label_key = "starling_labels"
+                    break
+            except Exception:
+                pass
+        if label_key is not None:
+            break
+
+# Check ST attributes
+if label_key is None:
+    for attr in ["pred", "labels_", "y_pred", "assignments", "clusters", "y", "labels"]:
+        if hasattr(st, attr):
+            try:
+                arr = np.asarray(getattr(st, attr))
+                if arr.ndim == 1 and arr.shape[0] == n_cells:
+                    adata.obs["starling_labels"] = pd.Series(arr).astype(str).values
+                    label_key = "starling_labels"
+                    break
+            except Exception:
+                pass
+
+# Scan ST.__dict__ for 1D arrays
+if label_key is None:
+    for k, v in st.__dict__.items():
+        try:
+            arr = np.asarray(v)
+            if arr.ndim == 1 and arr.shape[0] == n_cells:
+                adata.obs["starling_labels"] = pd.Series(arr).astype(str).values
+                label_key = "starling_labels"
+                print(f"[info] Using st.{k} as labels")
+                break
+        except Exception:
+            pass
+
+# Debug if not found
+if label_key is None:
+    print("DEBUG: could not auto-find labels.")
+    raise RuntimeError("STARLING labels not found; see debug output.")
+
+# Normalize key
+if label_key != "starling_labels":
+    adata.obs["starling_labels"] = adata.obs[label_key].astype(str).values
+print(f"Using STARLING labels from obs['{label_key}'] -> obs['starling_labels']")
+</code></pre>
+
 
 </div>
 <footer>
