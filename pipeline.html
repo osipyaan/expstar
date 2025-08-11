@@ -201,107 +201,92 @@ DATA_PATH = "sample_input.h5ad"  # Change this if using your own data
 </code></pre>
 
 <hr>
-
 <h2>Step 5: Understanding the Data & Key Methods</h2>
 
 <p>
-    <code>.h5ad</code> is the standard file format used by <code>AnnData</code> to store single-cell datasets. It typically contains:
+    The dataset is stored in the <code>.h5ad</code> format, which is the standard file format used by <code>AnnData</code> to store single-cell datasets.  
+    It contains the expression matrix, cell metadata (<code>.obs</code>), feature metadata (<code>.var</code>), and dimensionality reductions (<code>.obsm</code>).
 </p>
-
-<ul>
-    <li><b>Expression matrix:</b> Each row = a single cell (or segmented object from imaging), each column = a measured feature (gene, protein, or intensity). Often stored in a sparse format to save memory; converted to dense via <code>_to_dense()</code> when algorithms like KMeans or GMM require standard array math.</li>
-    <li><b>Cell metadata (<code>.obs</code>):</b> Information like spatial coordinates, cluster IDs, or cell area.</li>
-    <li><b>Feature metadata (<code>.var</code>):</b> Marker names and related information.</li>
-    <li><b>Dimensionality reductions (<code>.obsm</code>):</b> PCA, UMAP embeddings for clustering, visualization, and metrics.</li>
-</ul>
-
-<p>
-    <b>Leiden clustering:</b> A graph-based community detection algorithm. It builds a k-nearest-neighbor graph of cells and optimizes modularity, grouping cells into communities.  
-    <br><i>In contrast:</i>
-</p>
-<ul>
-    <li><b>KMeans:</b> Assigns cells to the nearest centroid, minimizing within-cluster variance. Assumes spherical clusters.</li>
-    <li><b>Gaussian Mixture Model (GMM):</b> A probabilistic version of KMeans, assuming Gaussian-shaped clusters and producing membership probabilities.</li>
-</ul>
-
-<p>
-    <b>UMAP:</b> A dimensionality reduction technique that preserves local neighborhood structure, mapping high-dimensional measurements into a 2D space. In this workflow, UMAP is used to create embeddings for silhouette scoring and visual assessment of clustering quality.
-</p>
-
-<p>
-    <b>Important parameters:</b>
-</p>
-<ul>
-    <li><code>SPATIAL_X</code>, <code>SPATIAL_Y</code>: Column names in <code>.obs</code> for spatial coordinates.</li>
-    <li><code>CELL_AREA</code>: Optional; cell area measurement.</li>
-    <li><code>K_TARGET</code>: Target number of clusters for KMeans/GMM. Biologically important—too low merges distinct cell types, too high creates artificial subgroups.</li>
-    <li><code>EXCLUSIVITY_MARKERS</code> & <code>IMPLAUSIBLE_PAIRS</code>: Biological sanity checks (e.g., CD3 vs CD20 shouldn’t co-express in the same cell).</li>
-    <li><code>OUT_DIR</code>: Output directory for results.</li>
-</ul>
-
-<p>
-    <b>Key functions in the script:</b>
-</p>
-<ul>
-    <li><code>utility.init_clustering()</code>: Prepares the <code>AnnData</code> object for STARLING and naive methods.</li>
-    <li><code>_to_dense()</code>: Converts sparse expression data to a dense array.</li>
-    <li><code>sc.pp.neighbors()</code>: Builds a cell-cell similarity graph.</li>
-    <li><code>sc.tl.umap()</code>: Runs UMAP for visualization.</li>
-</ul>
-
-<h2>Step 6: Example Benchmark Script</h2>
-
 <pre><code class="language-python">
-# =========================
-# Colab Benchmark: STARLING vs Naive Clustering
-# =========================
+DATA_PATH = "sample_input.h5ad"
+adata = ad.read_h5ad(DATA_PATH)
+</code></pre>
 
-# --- 0) Setup: installs & data ---
-!pip -q install git+https://github.com/camlab-bioml/starling.git scanpy anndata scikit-learn matplotlib pytorch-lightning umap-learn
-
-# Sample dataset (replace with your own .h5ad in /content or Drive)
-!wget -q https://github.com/camlab-bioml/starling/raw/main/docs/source/tutorial/sample_input.h5ad
-
-# --- 1) Config (edit these as needed) ---
-DATA_PATH = "sample_input.h5ad"    # your file path
-
-SPATIAL_X = "X"
-SPATIAL_Y = "Y"
-CELL_AREA = "area"                 # optional
-TRUE_LABELS = None                 # ground-truth label key if available
-
-K_TARGET = 10                      # K for KMeans/GMM
-
-EXCLUSIVITY_MARKERS = ["CD3", "CD20"]
-IMPLAUSIBLE_PAIRS   = [("CD3", "CD20"),
-                       ("Cytokeratin", "Vimentin")]
-
-OUT_DIR = "outputs"
-os.makedirs(OUT_DIR, exist_ok=True)
-
-# --- 2) Load data ---
-adata = utility.init_clustering("KM", ad.read_h5ad(DATA_PATH), k=K_TARGET)
-
+<p>
+    The <b>expression matrix</b> is often stored in a sparse format to save memory.  
+    We convert it to a dense NumPy array using a helper function so algorithms like KMeans or GMM can process it.
+</p>
+<pre><code class="language-python">
 def _to_dense(X):
     return np.asarray(X.todense()) if hasattr(X, "todense") else np.asarray(X)
 
 X_dense = _to_dense(adata.X)
+</code></pre>
 
-# --- 3) Neighbors + UMAP ---
+<p>
+    <b>Leiden clustering</b> is a graph-based method that builds a k-nearest-neighbor graph and optimizes modularity to find communities.  
+    In contrast:
+</p>
+<ul>
+    <li><b>KMeans:</b> Assigns cells to the nearest centroid, minimizing within-cluster variance.</li>
+    <li><b>Gaussian Mixture Model (GMM):</b> Models clusters as Gaussian distributions and outputs membership probabilities.</li>
+</ul>
+<pre><code class="language-python">
+# Leiden clustering
 sc.pp.neighbors(adata, use_rep=None, n_neighbors=15)
 sc.tl.umap(adata)
-
-# Leiden
 sc.tl.leiden(adata, resolution=1.0)
 adata.obs["leiden"] = adata.obs["leiden"].astype(str)
 
 # KMeans
 X_scaled = StandardScaler().fit_transform(X_dense)
-adata.obs["kmeans"] = KMeans(n_clusters=K_TARGET, n_init="auto", random_state=0).fit_predict(X_scaled).astype(str)
+adata.obs["kmeans"] = KMeans(n_clusters=K_TARGET, n_init="auto", random_state=0) \
+                        .fit_predict(X_scaled).astype(str)
 
 # GMM
-adata.obs["gmm"] = GaussianMixture(n_components=K_TARGET, covariance_type="full", random_state=0).fit_predict(X_scaled).astype(str)
+adata.obs["gmm"] = GaussianMixture(n_components=K_TARGET, covariance_type="full", random_state=0) \
+                        .fit_predict(X_scaled).astype(str)
 </code></pre>
+
+<p>
+    <b>UMAP</b> (Uniform Manifold Approximation and Projection) reduces the dimensionality of the dataset while preserving local neighborhood structure.  
+    It’s used here to produce a 2D embedding for silhouette scoring and visualization.
+</p>
+<pre><code class="language-python">
+sc.tl.umap(adata)
+</code></pre>
+
+<p>
+    We also define several important parameters:
+</p>
+<ul>
+    <li><code>SPATIAL_X</code>, <code>SPATIAL_Y</code>: Names of spatial coordinate columns in <code>.obs</code>.</li>
+    <li><code>CELL_AREA</code>: Optional; cell area measurement.</li>
+    <li><code>K_TARGET</code>: Target number of clusters for KMeans/GMM.</li>
+    <li><code>EXCLUSIVITY_MARKERS</code> & <code>IMPLAUSIBLE_PAIRS</code>: Marker-based biological sanity checks.</li>
+    <li><code>OUT_DIR</code>: Output directory for results.</li>
+</ul>
+<pre><code class="language-python">
+SPATIAL_X = "X"
+SPATIAL_Y = "Y"
+CELL_AREA = "area"
+TRUE_LABELS = None
+
+K_TARGET = 10
+EXCLUSIVITY_MARKERS = ["CD3", "CD20"]
+IMPLAUSIBLE_PAIRS = [("CD3", "CD20"), ("Cytokeratin", "Vimentin")]
+
+OUT_DIR = "outputs"
+os.makedirs(OUT_DIR, exist_ok=True)
+</code></pre>
+
+<p>
+    Finally, we use <code>utility.init_clustering()</code> to prepare the <code>AnnData</code> object with the correct structure for both STARLING and naive methods.
+</p>
+<pre><code class="language-python">
+adata = utility.init_clustering("KM", ad.read_h5ad(DATA_PATH), k=K_TARGET)
+</code></pre>
+
 
     <h2>Step 7: Running STARLING & Evaluating Results</h2>
 
