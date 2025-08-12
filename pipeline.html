@@ -99,7 +99,7 @@
 </p>
 
 <p>
-    Code for this tutorial can be accessed here: <a href="INSERT_CODE_LINK_HERE">[Code Link]</a><br>
+    Code for this tutorial can be accessed here: <a href="INSERT_CODE_LINK_HERE">https://colab.research.google.com/drive/14Gk-lnKaCmIEjq99w7kB7DJDBJYTkO3R#scrollTo=kGAECVoWF34A</a><br>
     Credit to <strong>Campbell Lab</strong> for developing the STARLING library and providing the sample code:
     <a href= https://colab.research.google.com/github/camlab-bioml/starling/blob/main/docs/source/tutorial/getting-started.ipynb>[Campbell Lab Link]</a>
 </p>
@@ -233,13 +233,13 @@ X_dense = _to_dense(adata.X)
 </code></pre>
 
 <p>
-    <b>Leiden clustering</b> is a graph-based method that builds a k-nearest-neighbor graph and optimizes modularity to find communities.  
-    In contrast:
+    <b>Leiden clustering</b> is a graph-based method that builds a k-nearest-neighbor graph and optimizes modularity to find communities.
+       It works well for noisy, high-dimensional data; cluster count is controlled indirectly via the resolution parameter.
 </p>
-<ul>
-    <li><b>KMeans:</b> Assigns cells to the nearest centroid, minimizing within-cluster variance.</li>
-    <li><b>Gaussian Mixture Model (GMM):</b> Models clusters as Gaussian distributions and outputs membership probabilities.</li>
-</ul>
+<p>
+    <b>KMeans:</b> Minimizes within-cluster variance by assigning each cell to the nearest centroid. Assumes roughly spherical clusters of similar size in feature space.
+    <b>Gaussian Mixture Model (GMM):</b> Probabilistic extension of KMeans; assumes each cluster is drawn from a Gaussian distribution, can capture ellipsoidal shapes, and outputs cluster membership probabilities.
+</p>
 <pre><code class="language-python">
 # Leiden clustering
 sc.pp.neighbors(adata, use_rep=None, n_neighbors=15)
